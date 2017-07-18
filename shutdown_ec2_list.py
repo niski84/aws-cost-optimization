@@ -67,6 +67,7 @@ def shutdown_instance(instanceid, dryrun, mode):
         print "{0} EC2 instance id: {1}".format(mode_text,instanceid)
         try:
             if mode == 'shutdown':
+                ec2.create_tags(Resources=[instanceid], Tags=[{'Key':'STOPPED_NON_COMPLIANT_TAGGING', 'Value':'Stopped due to non-compliant tagging'}])
                 ec2.stop_instances(InstanceIds=instanceid)
             if mode == 'MARK_FOR_DELETION'
                 ec2.create_tags(Resources=[instanceid], Tags=[{'Key':'MARKED_FOR_DELETION', 'Value':''}])
