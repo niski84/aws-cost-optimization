@@ -92,6 +92,10 @@ def query_name_tags(ec2, outputfile):
             if instance.tags is None:
                 continue
 
+            # clear values from last run
+            for key, value in required_fields.iteritems():
+                required_fields[key] = ""
+
             # iterate through each tag to see if it's a required_field
             for tag in instance.tags:
                 for key, value in required_fields.iteritems():
