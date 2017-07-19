@@ -39,16 +39,7 @@ def main():
 
 
 
-def test(outputfile):
-    print outputfile
-    nick = "test"
-    tags_message_leading_cols = []
-    tags_message_leading_cols.append(nick)
-    with open(outputfile, 'wb') as outfh:
-        writer = csv.writer(outfh)
-        test = "test"
-        tags_message = ["non compliance, missing so, many, tags, show me them tags!", test]
-        writer.writerow(tags_message)
+
 
 def connect_aws():
     print "connecting to aws using the {0} profile".format(aws_profile)
@@ -68,7 +59,7 @@ def query_name_tags(ec2, outputfile):
     with open(outputfile, 'wb') as outfh:
         writer = csv.writer(outfh)
 
-        header = ["instanceid", "start time","type","level of compliance","Tags sorted alphabetically per instance -->"]
+        header = ["instanceid", "start time","type", "private ip address", "level of compliance","Tags sorted alphabetically per instance -->"]
         writer.writerow(header)
 
         for instance in ec2.instances.all():
@@ -79,6 +70,8 @@ def query_name_tags(ec2, outputfile):
             tags_message_leading_cols.append(instance.id)
             tags_message_leading_cols.append(str(instance.launch_time))
             tags_message_leading_cols.append(instance.instance_type)
+            tags_message_leading_cols.append(instance.private_ip_address)
+
             if instance.tags is None:
                 continue
             for tag in instance.tags:
