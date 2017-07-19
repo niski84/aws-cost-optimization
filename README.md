@@ -6,7 +6,9 @@
     - Audits existing EC2 instances and adds NON_COMPLIANT_TAGGING if required_tags not found.
     - Designed to be run periodically (idempotent)
 - generate_csv_all_instance_tags.py
-    - generates report of all ec2 instances and their tags
+    - generates report of all ec2 instances and their tags with special use of output from aws_tag_validation.py
+- - generate_csv_all_instance_tags_read_only.py
+-   - forked version of generate csv to remove dependency off aws_tag_validation.py running first.
 - shutdown_ec2_list.py
     - shutdown a list of instances provided in text file
 - find_idle_instances.py
