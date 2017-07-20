@@ -10,6 +10,7 @@ import json
 import argparse
 import time
 import botocore
+from datetime import datetime
 
 ## ----------------------------------------------------
 ## Configuration variables (defaults)
@@ -24,14 +25,22 @@ dryrun = True
 aws_profile = ""
 aws_region = ""
 mode = ""
-
+shutdownlist = ""
 
 
 def main():
 
+    # Ensure the user provided valid arguments
     validate_script_inputs()
-    instanceids_shutdown_list = import_shutdown_list(shutdown_file_default)
+    print "shutdown list : " +shutdownlist
 
+    # Read in the istancesids to shutdown from text file
+    instanceids_shutdown_list = import_shutdown_list(shutdownlist)
+
+    # contect to aws
+    #conenct_aws()
+
+    # Shutdown the instances
     shutdown_instances(aws_profile,aws_region,dryrun,instanceids_shutdown_list)
 
 
@@ -54,23 +63,25 @@ def shutdown_instances(aws_profile,aws_region,dryrun,instanceids_shutdown_list):
     ec2 = boto3.resource('ec2', region_name=aws_region)
     ec2_client = boto3.client('ec2',region_name=aws_region)
 
+    # shut instances down if provided in shutdownlist
     for instanceid in instanceids_shutdown_list:
-        shutdown_instance(instanceid, dryrun, mode)
+        shutdown_instance(instanceid, dryrun, mode, ec2, ec2_client)
 
-    time.sleep(anti_hammer_sleep_interval)
+    time.sleep(float(anti_hammer_sleep_interval))
 
 
-def shutdown_instance(instanceid, dryrun, mode):
+def shutdown_instance(instanceid, dryrun, mode, ec2, ec2_client):
     global anti_hammer_sleep_interval
 
     if dryrun == False:
-        print "{0} EC2 instance id: {1}".format(mode_text,instanceid)
+        print "{0} EC2 instance id: {1}".format(mode,instanceid)
         try:
             if mode == 'shutdown':
-                ec2.create_tags(Resources=[instanceid], Tags=[{'Key':'STOPPED_NON_COMPLIANT_TAGGING', 'Value':'Stopped due to non-compliant tagging'}])
-                ec2.stop_instances(InstanceIds=instanceid)
-            if mode == 'MARK_FOR_DELETION'
-                ec2.create_tags(Resources=[instanceid], Tags=[{'Key':'MARKED_FOR_DELETION', 'Value':''}])
+                ec2_client.create_tags(Resources=[instanceid], Tags=[{'Key':'STOPPED_NON_COMPLIANT_TAGGING', 'Value':'Stopped due to non-compliant tagging '+str(datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}])
+                ec2_client.stop_instances(InstanceIds=[instanceid])
+
+            if mode == 'MARK_FOR_DELETION':
+                ec2_client.create_tags(Resources=[instanceid], Tags=[{'Key':'MARKED_FOR_DELETION', 'Value':''}])
 
 
         except Exception as e:
@@ -79,15 +90,15 @@ def shutdown_instance(instanceid, dryrun, mode):
     else:
         if mode == 'shutdown':
             print "DryRun: Would have shudown instance: {0}".format(instanceid)
-        if mode == 'MARK_FOR_DELETION'
-            print "DryRun:" Would have added MARKED_FOR_DELETION tag for isntance {0}.format(instanceid)
+        if mode == 'MARK_FOR_DELETION':
+            print "DryRun: Would have added MARKED_FOR_DELETION tag for isntance {0}".format(instanceid)
 
 def validate_script_inputs():
     parser = argparse.ArgumentParser(description=prog_desc)
     parser.add_argument("--profile", help="AWS profile: "+aws_profile_default, default=aws_profile_default)
     parser.add_argument("--region", help="AWS region: "+aws_region_default, default=aws_region_default)
     parser.add_argument("--dryrun", help="Dry Run. defaults to True (dry run). \
-        Note: dryrun=False must be supplied in order to run", choices=['True', 'False'], default=True)
+        Note: dryrun=False must be supplied in order make changes to AWS", choices=['True', 'False'], default=True)
     parser.add_argument("--shutdownlist", help="list of instanceids to shutdown. (one instanceid per line).\
         If argument not specified, {0} will be used: ".format(shutdown_file_default), default=shutdown_file_default)
     parser.add_argument("--mode", help="2 modes are available: add a tag MARK_FOR_DELETION, or Shutdown the ec2 instance", \
@@ -116,6 +127,11 @@ def validate_script_inputs():
     if str(args.mode).upper() == "MARK_FOR_DELETION":
         mode = "MARK_FOR_DELETION"
 
+    global shutdownlist
+    shutdownlist = args.shutdownlist
+    if shutdownlist == "":
+        shutdownlist = shutdownlist_default
+        print "-shutdownlist argument not provided, defaulting to "+shutdownlist_default
 
 if __name__ == "__main__":
     main()
