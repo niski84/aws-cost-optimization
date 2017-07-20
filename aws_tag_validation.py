@@ -37,17 +37,8 @@ aws_region = ""
 
 
 def main():
-
     validate_script_inputs()
-    #test(aws_profile,aws_region,dryrun)
     evaluate_compliance(aws_profile,aws_region,dryrun)
-
-def test(aws_profile,aws_region,dryrun):
-    boto3.setup_default_session(profile_name=aws_profile)
-    ec2_client = boto3.client('ec2',region_name=aws_region)
-
-    ec2_client.delete_tags(Resources=['i-0f76229774364d963'],Tags=[{"Key": "foo", "Value": "bar"}])
-    exit()
 
 def evaluate_compliance(aws_profile,aws_region,dryrun):
     boto3.setup_default_session(profile_name=aws_profile)
@@ -123,6 +114,7 @@ def evaluate_compliance(aws_profile,aws_region,dryrun):
             else:
                 print "DryRun: Would have created tag for instance: " + instance.id + " key " + non_compliant_tag_name + " value: " + non_compliant_message
 
+
         # If non_compliant_tag exists, but is now in compliance: remove non_compliant_tag
         if non_compliant == False and non_compliant_tag_name_exists == True:
             if dryrun == False:
@@ -158,22 +150,6 @@ def validate_script_inputs():
     global dryrun
     if str(args.dryrun).lower() == "false":
         dryrun = False
-
-def query_name_tags():
-    report_file  = open("cf3_tag_report.csv", "w")
-    boto3.setup_default_session(profile_name=aws_profile)
-    ec2 = boto3.resource('ec2', region_name=aws_region)
-
-    for instance in ec2.instances.all():
-        tagsMessage=""
-        if instance.tags is None:
-            continue
-        for tag in instance.tags:
-            tagsMessage = tagsMessage + tag['Key'] + ":" + tag['Value'] + ", "
-        print instance.id + ", " + tagsMessage
-        report_file.write(instance.id + ", " + tagsMessage + "\n")
-
-    report_file.close()
 
 
 if __name__ == "__main__":
