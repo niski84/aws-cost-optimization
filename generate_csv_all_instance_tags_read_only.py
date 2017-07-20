@@ -84,7 +84,7 @@ def query_name_tags(ec2, outputfile):
             tags_message_leading_cols.append(instance.id)
             tags_message_leading_cols.append(str(instance.launch_time))
             tags_message_leading_cols.append(instance.instance_type)
-            tags_message_leading_cols.append(instance.private_ip_address)
+            tags_message_leading_cols.append(str(instance.private_ip_address))
 
 
 
