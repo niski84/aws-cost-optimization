@@ -62,7 +62,7 @@ def query_name_tags(ec2, outputfile):
         header = ["instanceid", "start time","type", "private ip address", "level of compliance","Tags sorted alphabetically per instance -->"]
         writer.writerow(header)
 
-        for instance in ec2.instances.all():
+        for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
             tags_message_leading_cols=[]
             tags_message=[]
 
@@ -70,7 +70,7 @@ def query_name_tags(ec2, outputfile):
             tags_message_leading_cols.append(instance.id)
             tags_message_leading_cols.append(str(instance.launch_time))
             tags_message_leading_cols.append(instance.instance_type)
-            tags_message_leading_cols.append(instance.private_ip_address)
+            tags_message_leading_cols.append(str(instance.private_ip_address))
 
             if instance.tags is None:
                 continue
@@ -79,9 +79,13 @@ def query_name_tags(ec2, outputfile):
                     tags_message_leading_cols.append(tag['Key'] + " : " + tag['Value'])
                 else:
                     tags_message.append(tag['Key'] + " : " + tag['Value'])
+
+            #try:
             if not any("NON_COMPLIANT_TAGGING" in s for s in tags_message_leading_cols):
                 tags_message_leading_cols.append('OK')
-            #if not 'NON_COMPLIANT_TAGGING' in tags_message_leading_cols:
+            #except:
+            #    print tags_message_leading_cols
+
 
 
             tags_message.sort()
