@@ -20,12 +20,13 @@ import json
 import argparse
 import csv
 from collections import OrderedDict
-import xlsxwriter
+
 
 ## ----------------------------------------------------
 ## Configuration variables (defaults)
 ##
 
+# holds required tags and the values found. OfderedDict to keep the columns lined up
 required_fields = OrderedDict([('Name',''),('App',''),('AppOwner',''), ('Environment','')])
 
 aws_profile_default = "predix-w2-cf3"
@@ -39,10 +40,8 @@ outputfile = ""
 
 def main():
     validate_script_inputs()
-    #test()
     ec2 = connect_aws()
     query_name_tags(ec2, outputfile)
-
 
 
 
@@ -58,18 +57,15 @@ def connect_aws():
     return ec2
 
 def query_name_tags(ec2, outputfile):
-    #report_file  = open(outputfile, "w")
-
 
     with open(outputfile, 'wb') as outfh:
         writer = csv.writer(outfh)
 
         # header
-        header = ["Instance ID", "Launch Time","Instance Type","Private IP Address"]
+        header = ["Account","Instance ID", "Launch Time","Instance Type","Private IP Address"]
 
         # append required fields to header of report
         for key, value in required_fields.items():
-
             header.append(key + " tag")
 
         # write the header to report
@@ -77,40 +73,40 @@ def query_name_tags(ec2, outputfile):
 
         print "Generating report ... "
         for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
+
+            # clear values from last run
+            for key, value in required_fields.iteritems():
+                required_fields[key] = ""
+
+            # init
             tags_message_leading_cols=[]
             tags_message=[]
 
             # The first few metadata items.
+            tags_message_leading_cols.append(aws_profile)
             tags_message_leading_cols.append(instance.id)
             tags_message_leading_cols.append(str(instance.launch_time))
             tags_message_leading_cols.append(instance.instance_type)
             tags_message_leading_cols.append(str(instance.private_ip_address))
 
 
-
-            # some instances don't have ANY tags so this instance
+            # some instances don't have ANY tags and will throw exception
             if instance.tags is None:
-                continue
+                pass
+            else:
+                # iterate through each tag to see if it's a required_field
+                for tag in instance.tags:
+                    for key, value in required_fields.iteritems():
+                        if tag['Key'].lower() == key.lower():
+                            required_fields[key] = "{0} : {1} ".format(tag['Key'], tag['Value'])
 
-            # clear values from last run
-            for key, value in required_fields.iteritems():
-                required_fields[key] = ""
-
-            # iterate through each tag to see if it's a required_field
-            for tag in instance.tags:
-                for key, value in required_fields.iteritems():
-                    if tag['Key'].lower() == key.lower():
-                        required_fields[key] = "{0} : {1} ".format(tag['Key'], tag['Value'])
-
-
-
-
-            #print tags_message_leading_cols
+            # combine leading columns with required tags found
             merged_tags = tags_message_leading_cols + required_fields.values()
 
-            #print merged_tags
-
+            # print merged_tags to report
             writer.writerow(merged_tags)
+
+        print "Report output to: " + outputfile
 
 def validate_script_inputs():
 
