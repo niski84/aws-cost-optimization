@@ -23,7 +23,7 @@ def main():
      {'profile': '124439511098-Predix-Data-Dev', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
      {'profile': '648996173332-GEDigitalPredix-Management-Japan', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
      {'profile': '414687770714-Predix-GER-WRK-Dev', 'region': 'eu-central-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '233205821581-CF1-APNE1', 'region': 'ap-northeast-1.', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': '233205821581-CF1-APNE1', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
      {'profile': '584190725146-predix-ger-wrk', 'region': 'eu-central-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
     ]
 
