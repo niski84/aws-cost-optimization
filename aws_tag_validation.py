@@ -25,6 +25,14 @@ import time
 ## Configuration variables (defaults)
 ##
 required_fields = ["Name", "App", "AppOwner", "Environment"]
+
+# required_fields = [
+# {"key" : "Name", "variations" : ["Name"]}
+# {"key" : "App", "variations" : ["App","Application"]}
+# {"key" : "AppOwner", "variations" : ["AppOwner"]}
+# {"key" : "Environment", "variations" : ["Environment","env"]}
+# ]
+
 non_compliant_tag_name = "NON_COMPLIANT_TAGGING"
 aws_profile_default = "predix-w2-cf3"
 aws_region_default = "us-west-2"
