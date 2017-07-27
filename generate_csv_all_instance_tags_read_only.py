@@ -82,8 +82,14 @@ def query_name_tags(ec2, outputfile):
             tags_message_leading_cols=[]
             tags_message=[]
 
+            # report outputs the account name as the name used in the /.aws/config file.
+            # predix-management is the default account, so change the name so it doesn't
+            # appear confusing on the report
+            account_name = aws_profile
+            if account_name == "default": account_name = "768198107322-Predix-Mgt"
+
             # The first few metadata items.
-            tags_message_leading_cols.append(aws_profile)
+            tags_message_leading_cols.append(account_name)
             tags_message_leading_cols.append(instance.id)
             tags_message_leading_cols.append(str(instance.launch_time))
             tags_message_leading_cols.append(instance.instance_type)
