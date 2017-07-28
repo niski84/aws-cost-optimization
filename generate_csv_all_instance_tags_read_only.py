@@ -27,7 +27,7 @@ from collections import OrderedDict
 ##
 
 # holds required tags and the values found. OfderedDict to keep the columns lined up
-required_fields = OrderedDict([('Name',''),('App',''),('AppOwner',''), ('Environment','')])
+required_fields = OrderedDict([('Name',''),('App',''),('AppOwner',''), ('Environment',''), ('Director','')])
 
 aws_profile_default = "predix-w2-cf3"
 aws_region_default = "us-west-2"
