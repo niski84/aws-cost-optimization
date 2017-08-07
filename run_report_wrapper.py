@@ -25,10 +25,10 @@ def main():
      {'profile': '414687770714-Predix-GER-WRK-Dev', 'region': 'eu-central-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
      {'profile': '233205821581-CF1-APNE1', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
      {'profile': '584190725146-predix-ger-wrk', 'region': 'eu-central-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': '946308444248-industrial-grc', 'region': 'us-east-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'}
+
     ]
 
-
-# dont' spin down anything with NAT or NTP - jumphost/bastion in the name
 
     # dir where reports are written out to
     report_dir = "./reports/"+str(datetime.now().strftime('%Y-%m-%d-%H')+"/")
