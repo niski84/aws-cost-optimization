@@ -32,7 +32,9 @@ def main():
 
     # Ensure the user provided valid arguments
     validate_script_inputs()
-    print "shutdown list : " +shutdownlist
+
+    # import shutdown exclusion list (safety mechanism)
+    shutdown_exclusions_list = import_exclusion_list()
 
     # Read in the istancesids to shutdown from text file
     instanceids_shutdown_list = import_shutdown_list(shutdownlist)
@@ -41,8 +43,18 @@ def main():
     #conenct_aws()
 
     # Shutdown the instances
-    shutdown_instances(aws_profile,aws_region,dryrun,instanceids_shutdown_list)
+    shutdown_instances(aws_profile,aws_region,dryrun,instanceids_shutdown_list,shutdown_exclusions_list)
 
+# read in file containing instance ids (1 per line) to exclude from shut down
+# used as safety mechanism
+def import_exclusion_list():
+
+    f = open ('shutdown_exclusions.txt','r')
+    instanceids_shutdown_list = f.read().splitlines()
+    # for instance in instanceids_shutdown_list:
+    #     print instance
+
+    return instanceids_shutdown_list
 
 def import_shutdown_list(file_location):
     try:
@@ -57,15 +69,19 @@ def import_shutdown_list(file_location):
     return instanceids_shutdown_list
 
 
-def shutdown_instances(aws_profile,aws_region,dryrun,instanceids_shutdown_list):
+def shutdown_instances(aws_profile,aws_region,dryrun,instanceids_shutdown_list,shutdown_exclusions_list):
     global anti_hammer_sleep_interval
     boto3.setup_default_session(profile_name=aws_profile)
     ec2 = boto3.resource('ec2', region_name=aws_region)
     ec2_client = boto3.client('ec2',region_name=aws_region)
 
     # shut instances down if provided in shutdownlist
+    # skip if it's in the exclusions list
     for instanceid in instanceids_shutdown_list:
-        shutdown_instance(instanceid, dryrun, mode, ec2, ec2_client)
+        if not instanceid in shutdown_exclusions_list:
+            shutdown_instance(instanceid, dryrun, mode, ec2, ec2_client)
+        else:
+            print "{0} is in the exclusion list. skipped. ".format(instanceid)
 
     time.sleep(float(anti_hammer_sleep_interval))
 
