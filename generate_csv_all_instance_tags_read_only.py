@@ -64,7 +64,7 @@ def query_name_tags(ec2, outputfile):
         writer = csv.writer(outfh)
 
         # header
-        header = ["Account","Instance ID", "Instance State", "Launch Time","Instance Type","Private IP Address"]
+        header = ["Account", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time","Instance Type","Private IP Address","Tenancy","Security Group"]
 
         # append required fields to header of report
         for key, value in required_fields.items():
@@ -99,13 +99,23 @@ def query_name_tags(ec2, outputfile):
             account_name = aws_profile
             if account_name == "default": account_name = "768198107322-Predix-Mgt"
 
+
+            sec_group_text = ""
+            for sec_groups in instance.security_groups:
+                sec_group_text = sec_group_text + sec_groups['GroupName'] + ":" + sec_groups['GroupId'] + ","
+            sec_group_text = sec_group_text.rstrip(",")
+
             # The first few metadata items.
             tags_message_leading_cols.append(account_name)
+            tags_message_leading_cols.append(aws_region)
+            tags_message_leading_cols.append(instance.placement['AvailabilityZone'])
             tags_message_leading_cols.append(instance.id)
-            tags_message_leading_cols.append(instance.state)
+            tags_message_leading_cols.append(instance.state['Name'])
             tags_message_leading_cols.append(str(instance.launch_time))
             tags_message_leading_cols.append(instance.instance_type)
             tags_message_leading_cols.append(str(instance.private_ip_address))
+            tags_message_leading_cols.append(instance.instance_lifecycle)
+            tags_message_leading_cols.append(sec_group_text)
 
 
             # some instances don't have ANY tags and will throw exception
@@ -143,7 +153,7 @@ def validate_script_inputs():
 
     global filter_by_tag
     filter_by_tag = args.filter_by_tag
-    print "heres teh value for filter_by_tag" + str(filter_by_tag)
+
 
     global aws_region
     aws_region = args.region
