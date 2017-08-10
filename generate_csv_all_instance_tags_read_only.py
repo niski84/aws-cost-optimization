@@ -36,6 +36,8 @@ aws_region_default = "us-west-2"
 aws_profile = ""
 aws_region = ""
 outputfile = ""
+filter_by_tag = ""
+
 
 
 def main():
@@ -62,7 +64,7 @@ def query_name_tags(ec2, outputfile):
         writer = csv.writer(outfh)
 
         # header
-        header = ["Account","Instance ID", "Launch Time","Instance Type","Private IP Address"]
+        header = ["Account","Instance ID", "Instance State", "Launch Time","Instance Type","Private IP Address"]
 
         # append required fields to header of report
         for key, value in required_fields.items():
@@ -72,7 +74,16 @@ def query_name_tags(ec2, outputfile):
         writer.writerow(header)
 
         print "Generating report ... "
-        for instance in ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]):
+
+        # if filter_by_tag argument was given, search on that.
+        if filter_by_tag:
+            instances = ec2.instances.filter(Filters=[{'Name': 'tag:' + filter_by_tag,'Values': ['*']}])
+        else:
+            # no filter_by_tag argument was given, so default to reporting on running instances
+            instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+
+        # iterate thru all the instances returned by filter
+        for instance in instances:
 
             # clear values from last run
             for key, value in required_fields.iteritems():
@@ -91,6 +102,7 @@ def query_name_tags(ec2, outputfile):
             # The first few metadata items.
             tags_message_leading_cols.append(account_name)
             tags_message_leading_cols.append(instance.id)
+            tags_message_leading_cols.append(instance.state)
             tags_message_leading_cols.append(str(instance.launch_time))
             tags_message_leading_cols.append(instance.instance_type)
             tags_message_leading_cols.append(str(instance.private_ip_address))
@@ -119,6 +131,7 @@ def validate_script_inputs():
     parser = argparse.ArgumentParser(description=prog_desc)
     parser.add_argument("--profile", help="AWS profile: "+aws_profile_default, default=aws_profile_default)
     parser.add_argument("--region", help="AWS region: "+aws_region_default, default=aws_region_default)
+    parser.add_argument("--filter_by_tag", help="filter by tag name")
     parser.add_argument("--output", help="Output filename", default="<profile>_tag_report.csv")
     args = parser.parse_args()
 
@@ -127,6 +140,10 @@ def validate_script_inputs():
     if aws_profile == "":
         aws_profile = aws_profile_default
         print "-profile argument not provided, defaulting to "+aws_profile_default
+
+    global filter_by_tag
+    filter_by_tag = args.filter_by_tag
+    print "heres teh value for filter_by_tag" + str(filter_by_tag)
 
     global aws_region
     aws_region = args.region
