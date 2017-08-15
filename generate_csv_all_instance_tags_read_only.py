@@ -20,7 +20,7 @@ import json
 import argparse
 import csv
 from collections import OrderedDict
-
+import datetime
 
 ## ----------------------------------------------------
 ## Configuration variables (defaults)
@@ -39,32 +39,30 @@ outputfile = ""
 filter_by_tag = ""
 
 
-
 def main():
     validate_script_inputs()
-    ec2 = connect_aws()
-    query_name_tags(ec2, outputfile)
+    ec2,cw = connect_aws(aws_profile,aws_region)
+    run_report(ec2,cw,outputfile)
 
-
-
-def connect_aws():
+def connect_aws(aws_profile,aws_region):
     print "connecting to aws using the {0} profile".format(aws_profile)
     boto3.setup_default_session(profile_name=aws_profile)
     ec2 = boto3.resource('ec2', region_name=aws_region)
+    cw = boto3.client('cloudwatch', region_name=aws_region)
     my_session = boto3.session.Session()
     my_region = my_session.region_name
     print "logged into {0} region".format(my_region)
-    print "using {0} account.".format(boto3.client('sts').get_caller_identity()['Account'])
+    print "using {0} account to assume roles.".format(boto3.client('sts').get_caller_identity()['Account'])
 
-    return ec2
+    return ec2, cw
 
-def query_name_tags(ec2, outputfile):
+def run_report(ec2,cw, outputfile):
 
     with open(outputfile, 'wb') as outfh:
         writer = csv.writer(outfh)
 
         # header
-        header = ["Account", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time","Instance Type","Private IP Address","Tenancy","Security Group"]
+        header = ["Account", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time","Instance Type","Private IP Address","Tenancy","Security Group","Average CPU Utilization","Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
 
         # append required fields to header of report
         for key, value in required_fields.items():
@@ -116,6 +114,16 @@ def query_name_tags(ec2, outputfile):
             tags_message_leading_cols.append(str(instance.private_ip_address))
             tags_message_leading_cols.append(instance.instance_lifecycle)
             tags_message_leading_cols.append(sec_group_text)
+            tags_message_leading_cols.append(get_cloudwatch_metric('cpu_avg',instance.id ,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('cpu_max',instance.id ,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('disk_read_bytes',instance.id ,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('disk_write_bytes',instance.id ,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('network_in_bytes',instance.id ,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('network_out_bytes',instance.id ,aws_region,cw))
+
+            # valid metric params are : cpu_avg , cpu_max , disk_read_bytes , disk_write_bytes , network_in_bytes , network_out_bytes
+
+            #"Average CPU Utilization","Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
 
 
             # some instances don't have ANY tags and will throw exception
@@ -135,6 +143,99 @@ def query_name_tags(ec2, outputfile):
             writer.writerow(merged_tags)
 
         print "Report output to: " + outputfile
+
+
+
+# get cloud watch metrics.
+# valid metric params are : cpu_avg , cpu_max , disk_read_bytes , disk_write_bytes , network_in_bytes , network_out_bytes
+def get_cloudwatch_metric(metric_query,instanceid,aws_region,cw):
+
+    dim = [{'Name': 'InstanceId', 'Value': instanceid}]
+    period = 60
+    endTime = datetime.datetime.now()
+    startTime = endTime - datetime.timedelta(days=1)
+
+    if metric_query.lower() == "cpu_avg":
+        metric = cw.get_metric_statistics(Period=period,
+        StartTime=startTime,
+        EndTime=endTime,
+        MetricName='CPUUtilization',
+        Namespace='AWS/EC2',
+        Statistics=['Average'],
+        Dimensions=dim)
+
+        if metric['Datapoints']:
+             data = metric['Datapoints'][0]['Average']
+             return "{0}%".format(data)
+
+    if metric_query.lower() == "cpu_max":
+        metric = cw.get_metric_statistics(Period=period,
+        StartTime=startTime,
+        EndTime=endTime,
+        MetricName='CPUUtilization',
+        Namespace='AWS/EC2',
+        Statistics=['Maximum'],
+        Dimensions=dim)
+
+        if metric['Datapoints']:
+            data = metric['Datapoints'][0]['Maximum']
+            return "{0}%".format(data)
+
+    if metric_query.lower() == "disk_read_bytes":
+        metric = cw.get_metric_statistics(Period=period,
+        StartTime=startTime,
+        EndTime=endTime,
+        MetricName='DiskReadBytes',
+        Namespace='AWS/EC2',
+        Statistics=['Sum'],
+        Dimensions=dim)
+
+        if metric['Datapoints']:
+            data = metric['Datapoints'][0]['Sum']
+            return "{0} Bytes".format(data)
+
+    if metric_query.lower() == "disk_write_bytes":
+        metric = cw.get_metric_statistics(Period=period,
+        StartTime=startTime,
+        EndTime=endTime,
+        MetricName='DiskWriteBytes',
+        Namespace='AWS/EC2',
+        Statistics=['Sum'],
+        Dimensions=dim)
+
+        if metric['Datapoints']:
+            data = metric['Datapoints'][0]['Sum']
+            return "{0} Bytes".format(data)
+
+    if metric_query.lower() == "network_in_bytes":
+        metric = cw.get_metric_statistics(Period=period,
+        StartTime=startTime,
+        EndTime=endTime,
+        MetricName='NetworkIn',
+        Namespace='AWS/EC2',
+        Statistics=['Sum'],
+        Dimensions=dim)
+
+        if metric['Datapoints']:
+            data = metric['Datapoints'][0]['Sum']
+            return "{0} Bytes".format(data)
+
+    if metric_query.lower() == "network_out_bytes":
+        metric = cw.get_metric_statistics(Period=period,
+        StartTime=startTime,
+        EndTime=endTime,
+        MetricName='NetworkOut',
+        Namespace='AWS/EC2',
+        Statistics=['Sum'],
+        Dimensions=dim)
+
+        if metric['Datapoints']:
+            data = metric['Datapoints'][0]['Sum']
+            return "{0} Bytes".format(data)
+
+
+
+
 
 def validate_script_inputs():
 
