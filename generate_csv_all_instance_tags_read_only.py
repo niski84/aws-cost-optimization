@@ -21,6 +21,7 @@ import argparse
 import csv
 from collections import OrderedDict
 import datetime
+import math
 
 ## ----------------------------------------------------
 ## Configuration variables (defaults)
@@ -37,12 +38,15 @@ aws_profile = ""
 aws_region = ""
 outputfile = ""
 filter_by_tag = ""
+cloudwatch_time_delta = datetime.timedelta(days=14)
 
 
 def main():
+    print "time delta is {0}".format(cloudwatch_time_delta)
     validate_script_inputs()
     ec2,cw = connect_aws(aws_profile,aws_region)
-    run_report(ec2,cw,outputfile)
+    run_report(ec2,cw,cloudwatch_time_delta,outputfile)
+
 
 def connect_aws(aws_profile,aws_region):
     print "connecting to aws using the {0} profile".format(aws_profile)
@@ -56,13 +60,15 @@ def connect_aws(aws_profile,aws_region):
 
     return ec2, cw
 
-def run_report(ec2,cw, outputfile):
+def run_report(ec2,cw, cloudwatch_time_delta, outputfile):
 
     with open(outputfile, 'wb') as outfh:
         writer = csv.writer(outfh)
 
         # header
-        header = ["Account", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time","Instance Type","Private IP Address","Tenancy","Security Group","Average CPU Utilization","Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
+        header = ["Account", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time", \
+        "Instance Type","Private IP Address","Tenancy","Security Group","Average CPU Utilization", \
+        "Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
 
         # append required fields to header of report
         for key, value in required_fields.items():
@@ -78,7 +84,8 @@ def run_report(ec2,cw, outputfile):
             instances = ec2.instances.filter(Filters=[{'Name': 'tag:' + filter_by_tag,'Values': ['*']}])
         else:
             # no filter_by_tag argument was given, so default to reporting on running instances
-            instances = ec2.instances.filter(Filters=[{'Name': 'instance-state-name', 'Values': ['running']}])
+            instances = ec2.instances.all()
+
 
         # iterate thru all the instances returned by filter
         for instance in instances:
@@ -114,16 +121,12 @@ def run_report(ec2,cw, outputfile):
             tags_message_leading_cols.append(str(instance.private_ip_address))
             tags_message_leading_cols.append(instance.instance_lifecycle)
             tags_message_leading_cols.append(sec_group_text)
-            tags_message_leading_cols.append(get_cloudwatch_metric('cpu_avg',instance.id ,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('cpu_max',instance.id ,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('disk_read_bytes',instance.id ,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('disk_write_bytes',instance.id ,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('network_in_bytes',instance.id ,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('network_out_bytes',instance.id ,aws_region,cw))
-
-            # valid metric params are : cpu_avg , cpu_max , disk_read_bytes , disk_write_bytes , network_in_bytes , network_out_bytes
-
-            #"Average CPU Utilization","Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
+            tags_message_leading_cols.append(get_cloudwatch_metric('cpu_avg',instance.id,cloudwatch_time_delta,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('cpu_max',instance.id,cloudwatch_time_delta,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('disk_read_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('disk_write_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('network_in_bytes',instance.id,cloudwatch_time_delta ,aws_region,cw))
+            tags_message_leading_cols.append(get_cloudwatch_metric('network_out_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
 
 
             # some instances don't have ANY tags and will throw exception
@@ -148,12 +151,12 @@ def run_report(ec2,cw, outputfile):
 
 # get cloud watch metrics.
 # valid metric params are : cpu_avg , cpu_max , disk_read_bytes , disk_write_bytes , network_in_bytes , network_out_bytes
-def get_cloudwatch_metric(metric_query,instanceid,aws_region,cw):
+def get_cloudwatch_metric(metric_query,instanceid,time_delta,aws_region,cw):
 
     dim = [{'Name': 'InstanceId', 'Value': instanceid}]
-    period = 60
+    period = 3600 # 3600 == 1 hr
     endTime = datetime.datetime.now()
-    startTime = endTime - datetime.timedelta(days=1)
+    startTime = endTime - time_delta
 
     if metric_query.lower() == "cpu_avg":
         metric = cw.get_metric_statistics(Period=period,
@@ -192,7 +195,8 @@ def get_cloudwatch_metric(metric_query,instanceid,aws_region,cw):
 
         if metric['Datapoints']:
             data = metric['Datapoints'][0]['Sum']
-            return "{0} Bytes".format(data)
+            data = get_human_readable_filesize(data)
+            return data
 
     if metric_query.lower() == "disk_write_bytes":
         metric = cw.get_metric_statistics(Period=period,
@@ -205,7 +209,8 @@ def get_cloudwatch_metric(metric_query,instanceid,aws_region,cw):
 
         if metric['Datapoints']:
             data = metric['Datapoints'][0]['Sum']
-            return "{0} Bytes".format(data)
+            data = get_human_readable_filesize(data)
+            return data
 
     if metric_query.lower() == "network_in_bytes":
         metric = cw.get_metric_statistics(Period=period,
@@ -218,7 +223,8 @@ def get_cloudwatch_metric(metric_query,instanceid,aws_region,cw):
 
         if metric['Datapoints']:
             data = metric['Datapoints'][0]['Sum']
-            return "{0} Bytes".format(data)
+            data = get_human_readable_filesize(data)
+            return data
 
     if metric_query.lower() == "network_out_bytes":
         metric = cw.get_metric_statistics(Period=period,
@@ -231,11 +237,18 @@ def get_cloudwatch_metric(metric_query,instanceid,aws_region,cw):
 
         if metric['Datapoints']:
             data = metric['Datapoints'][0]['Sum']
-            return "{0} Bytes".format(data)
+            data = get_human_readable_filesize(data)
+            return data
 
-
-
-
+# cloudwatch returns values in Bytes; yuck.  Convert to human readable data sizes
+def get_human_readable_filesize(size_bytes):
+   if size_bytes == 0:
+       return "0B"
+   size_name = ("B", "KB", "MB", "GB", "TB", "PB")
+   i = int(math.floor(math.log(size_bytes, 1024)))
+   p = math.pow(1024, i)
+   s = round(size_bytes / p, 2)
+   return "%s %s" % (s, size_name[i])
 
 def validate_script_inputs():
 
