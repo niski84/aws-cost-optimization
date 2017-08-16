@@ -29,7 +29,6 @@ def main():
 
     ]
 
-
     # dir where reports are written out to
     report_dir = "./reports/"+str(datetime.now().strftime('%Y-%m-%d-%H')+"/")
 
@@ -44,7 +43,7 @@ def main():
             execute_log(cmd)
 
         csv_name = profile['profile']+"_tag_report.csv"
-        cmd = "python {2} --region={1} --profile={0} --output={3}".format(profile['profile'],profile['region'],profile['which_report'],report_dir+csv_name)
+        cmd = "python {2} --region={1} --profile={0} {4} --output={3}".format(profile['profile'],profile['region'],profile['which_report'],report_dir+csv_name,"--use_cloudwatch=false")
         print cmd
         os.system(cmd)
         #os.system("python generate_csv_all_instance_tags_read_only.py --profile {0}".format(profile))
@@ -68,7 +67,7 @@ def unused():
 # concatonate all the csv reports
 def concatonate_reports(report_dir):
     filenames = []
-    output_file = report_dir + str(datetime.now().strftime('%Y-%m-%d-%H'))+"_combined_accounts_tagging_report.csv"
+    output_file = report_dir + str(datetime.now().strftime('%Y-%m-%d'))+"_combined_accounts_tagging_report.csv"
 
     # walk report dir to get report filenames
     files = [ f for f in os.listdir(report_dir) if os.path.isfile(os.path.join(report_dir,f)) ]

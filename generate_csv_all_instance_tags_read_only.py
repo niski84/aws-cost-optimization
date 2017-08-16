@@ -38,21 +38,25 @@ aws_profile = ""
 aws_region = ""
 outputfile = ""
 filter_by_tag = ""
-cloudwatch_time_delta = datetime.timedelta(days=14)
-
+cloudwatch_time_delta = datetime.timedelta(days=1)
+use_cloudwatch = ""
+cw = ""
 
 def main():
     print "time delta is {0}".format(cloudwatch_time_delta)
     validate_script_inputs()
     ec2,cw = connect_aws(aws_profile,aws_region)
-    run_report(ec2,cw,cloudwatch_time_delta,outputfile)
+    run_report(ec2,cw,cloudwatch_time_delta,use_cloudwatch,outputfile)
 
 
 def connect_aws(aws_profile,aws_region):
     print "connecting to aws using the {0} profile".format(aws_profile)
     boto3.setup_default_session(profile_name=aws_profile)
     ec2 = boto3.resource('ec2', region_name=aws_region)
-    cw = boto3.client('cloudwatch', region_name=aws_region)
+    if use_cloudwatch == "true":
+        cw = boto3.client('cloudwatch', region_name=aws_region)
+    else:
+        cw = ""
     my_session = boto3.session.Session()
     my_region = my_session.region_name
     print "logged into {0} region".format(my_region)
@@ -60,15 +64,19 @@ def connect_aws(aws_profile,aws_region):
 
     return ec2, cw
 
-def run_report(ec2,cw, cloudwatch_time_delta, outputfile):
+def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
 
     with open(outputfile, 'wb') as outfh:
         writer = csv.writer(outfh)
 
         # header
-        header = ["Account", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time", \
-        "Instance Type","Private IP Address","Tenancy","Security Group","Average CPU Utilization", \
-        "Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
+        header = ["Account ID","Account Name", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time", \
+        "Instance Type","Private IP Address","Tenancy","Security Group"]
+
+        if use_cloudwatch == "true":
+            cloudwatch_headers=["Average CPU Utilization", \
+            "Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
+            header.append(cloudwatch_headers)
 
         # append required fields to header of report
         for key, value in required_fields.items():
@@ -87,9 +95,23 @@ def run_report(ec2,cw, cloudwatch_time_delta, outputfile):
             instances = ec2.instances.all()
 
 
+        # report outputs the account name as the name used in the /.aws/config file.
+        # predix-management is the default account, so change the name so it doesn't
+        # appear confusing on the report
+
+        if aws_profile == "default":
+            account_id = "768198107322"
+            account_name = "Predix-Mgt"
+        else:
+            account_id = aws_profile[:12]
+            account_name = aws_profile[13:]
+
+        size = sum(1 for _ in instances)
+
+        print "Search returned {0} instances".format(size)
         # iterate thru all the instances returned by filter
         for instance in instances:
-
+            print "on instance {0} ".format(instance)
             # clear values from last run
             for key, value in required_fields.iteritems():
                 required_fields[key] = ""
@@ -98,19 +120,13 @@ def run_report(ec2,cw, cloudwatch_time_delta, outputfile):
             tags_message_leading_cols=[]
             tags_message=[]
 
-            # report outputs the account name as the name used in the /.aws/config file.
-            # predix-management is the default account, so change the name so it doesn't
-            # appear confusing on the report
-            account_name = aws_profile
-            if account_name == "default": account_name = "768198107322-Predix-Mgt"
-
-
             sec_group_text = ""
             for sec_groups in instance.security_groups:
                 sec_group_text = sec_group_text + sec_groups['GroupName'] + ":" + sec_groups['GroupId'] + ","
             sec_group_text = sec_group_text.rstrip(",")
 
             # The first few metadata items.
+            tags_message_leading_cols.append(account_id)
             tags_message_leading_cols.append(account_name)
             tags_message_leading_cols.append(aws_region)
             tags_message_leading_cols.append(instance.placement['AvailabilityZone'])
@@ -121,12 +137,13 @@ def run_report(ec2,cw, cloudwatch_time_delta, outputfile):
             tags_message_leading_cols.append(str(instance.private_ip_address))
             tags_message_leading_cols.append(instance.instance_lifecycle)
             tags_message_leading_cols.append(sec_group_text)
-            tags_message_leading_cols.append(get_cloudwatch_metric('cpu_avg',instance.id,cloudwatch_time_delta,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('cpu_max',instance.id,cloudwatch_time_delta,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('disk_read_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('disk_write_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('network_in_bytes',instance.id,cloudwatch_time_delta ,aws_region,cw))
-            tags_message_leading_cols.append(get_cloudwatch_metric('network_out_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
+            if use_cloudwatch == "true":
+                tags_message_leading_cols.append(get_cloudwatch_metric('cpu_avg',instance.id,cloudwatch_time_delta,aws_region,cw))
+                tags_message_leading_cols.append(get_cloudwatch_metric('cpu_max',instance.id,cloudwatch_time_delta,aws_region,cw))
+                tags_message_leading_cols.append(get_cloudwatch_metric('disk_read_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
+                tags_message_leading_cols.append(get_cloudwatch_metric('disk_write_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
+                tags_message_leading_cols.append(get_cloudwatch_metric('network_in_bytes',instance.id,cloudwatch_time_delta ,aws_region,cw))
+                tags_message_leading_cols.append(get_cloudwatch_metric('network_out_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
 
 
             # some instances don't have ANY tags and will throw exception
@@ -256,6 +273,7 @@ def validate_script_inputs():
     parser.add_argument("--profile", help="AWS profile: "+aws_profile_default, default=aws_profile_default)
     parser.add_argument("--region", help="AWS region: "+aws_region_default, default=aws_region_default)
     parser.add_argument("--filter_by_tag", help="filter by tag name")
+    parser.add_argument("--use_cloudwatch", help="Add Cloudwatch Metrics", default="true")
     parser.add_argument("--output", help="Output filename", default="<profile>_tag_report.csv")
     args = parser.parse_args()
 
@@ -267,6 +285,9 @@ def validate_script_inputs():
 
     global filter_by_tag
     filter_by_tag = args.filter_by_tag
+
+    global use_cloudwatch
+    use_cloudwatch = args.use_cloudwatch
 
 
     global aws_region
