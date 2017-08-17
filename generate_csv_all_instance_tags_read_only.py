@@ -71,7 +71,7 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
 
         # header
         header = ["Account ID","Account Name", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time", \
-        "Instance Type","Private IP Address","Tenancy","Security Group","AMI-ID","Memory","Pricing Type"]
+        "Instance Type","Private IP Address","Tenancy","Security Group","AMI-ID","Memory","Pricing Type","Auto Scaling Group Name"]
 
 
         cloudwatch_headers=["Average CPU Utilization", \
@@ -140,6 +140,7 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
             tags_message_leading_cols.append("") # AMI-ID
             tags_message_leading_cols.append("") # Memory
             tags_message_leading_cols.append("") # Pricing Type
+            tags_message_leading_cols.append("") # Autoscaling Group
 
             # cloud watch permissions not yet deployed; don't compute values
             if use_cloudwatch == "true":
