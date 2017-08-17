@@ -71,12 +71,12 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
 
         # header
         header = ["Account ID","Account Name", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time", \
-        "Instance Type","Private IP Address","Tenancy","Security Group"]
+        "Instance Type","Private IP Address","Tenancy","Security Group","AMI-ID","Memory","Pricing Type"]
 
-        if use_cloudwatch == "true":
-            cloudwatch_headers=["Average CPU Utilization", \
-            "Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
-            header.append(cloudwatch_headers)
+
+        cloudwatch_headers=["Average CPU Utilization", \
+        "Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
+        header = header + cloudwatch_headers
 
         # append required fields to header of report
         for key, value in required_fields.items():
@@ -137,6 +137,11 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
             tags_message_leading_cols.append(str(instance.private_ip_address))
             tags_message_leading_cols.append(instance.instance_lifecycle)
             tags_message_leading_cols.append(sec_group_text)
+            tags_message_leading_cols.append("") # AMI-ID
+            tags_message_leading_cols.append("") # Memory
+            tags_message_leading_cols.append("") # Pricing Type
+
+            # cloud watch permissions not yet deployed; don't compute values
             if use_cloudwatch == "true":
                 tags_message_leading_cols.append(get_cloudwatch_metric('cpu_avg',instance.id,cloudwatch_time_delta,aws_region,cw))
                 tags_message_leading_cols.append(get_cloudwatch_metric('cpu_max',instance.id,cloudwatch_time_delta,aws_region,cw))
@@ -144,7 +149,13 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
                 tags_message_leading_cols.append(get_cloudwatch_metric('disk_write_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
                 tags_message_leading_cols.append(get_cloudwatch_metric('network_in_bytes',instance.id,cloudwatch_time_delta ,aws_region,cw))
                 tags_message_leading_cols.append(get_cloudwatch_metric('network_out_bytes',instance.id,cloudwatch_time_delta,aws_region,cw))
-
+            else:
+                tags_message_leading_cols.append("")
+                tags_message_leading_cols.append("")
+                tags_message_leading_cols.append("")
+                tags_message_leading_cols.append("")
+                tags_message_leading_cols.append("")
+                tags_message_leading_cols.append("")
 
             # some instances don't have ANY tags and will throw exception
             if instance.tags is None:
@@ -212,7 +223,6 @@ def get_cloudwatch_metric(metric_query,instanceid,time_delta,aws_region,cw):
 
         if metric['Datapoints']:
             data = metric['Datapoints'][0]['Sum']
-            data = get_human_readable_filesize(data)
             return data
 
     if metric_query.lower() == "disk_write_bytes":
@@ -226,7 +236,6 @@ def get_cloudwatch_metric(metric_query,instanceid,time_delta,aws_region,cw):
 
         if metric['Datapoints']:
             data = metric['Datapoints'][0]['Sum']
-            data = get_human_readable_filesize(data)
             return data
 
     if metric_query.lower() == "network_in_bytes":
@@ -240,7 +249,6 @@ def get_cloudwatch_metric(metric_query,instanceid,time_delta,aws_region,cw):
 
         if metric['Datapoints']:
             data = metric['Datapoints'][0]['Sum']
-            data = get_human_readable_filesize(data)
             return data
 
     if metric_query.lower() == "network_out_bytes":
@@ -254,7 +262,6 @@ def get_cloudwatch_metric(metric_query,instanceid,time_delta,aws_region,cw):
 
         if metric['Datapoints']:
             data = metric['Datapoints'][0]['Sum']
-            data = get_human_readable_filesize(data)
             return data
 
 # cloudwatch returns values in Bytes; yuck.  Convert to human readable data sizes
