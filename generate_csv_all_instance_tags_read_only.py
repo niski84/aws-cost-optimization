@@ -38,33 +38,40 @@ aws_profile = ""
 aws_region = ""
 outputfile = ""
 filter_by_tag = ""
-cloudwatch_time_delta = datetime.timedelta(days=1)
+cloudwatch_time_delta = datetime.timedelta(days=14)
 use_cloudwatch = ""
 cw = ""
 
 def main():
     print "time delta is {0}".format(cloudwatch_time_delta)
     validate_script_inputs()
-    ec2,cw = connect_aws(aws_profile,aws_region)
-    run_report(ec2,cw,cloudwatch_time_delta,use_cloudwatch,outputfile)
+    ec2,ec2_client,cw,asg = connect_aws(aws_profile,aws_region)
+
+    #print get_image_lookup("ami-0b87606b",ec2,ec2_client)
+
+    run_report(ec2,cw,asg,cloudwatch_time_delta,use_cloudwatch,outputfile)
 
 
 def connect_aws(aws_profile,aws_region):
     print "connecting to aws using the {0} profile".format(aws_profile)
     boto3.setup_default_session(profile_name=aws_profile)
     ec2 = boto3.resource('ec2', region_name=aws_region)
+    ec2_client = boto3.client('ec2', region_name=aws_region)
+    asg = boto3.client('autoscaling', region_name=aws_region)
+
     if use_cloudwatch == "true":
         cw = boto3.client('cloudwatch', region_name=aws_region)
     else:
         cw = ""
     my_session = boto3.session.Session()
     my_region = my_session.region_name
+
     print "logged into {0} region".format(my_region)
     print "using {0} account to assume roles.".format(boto3.client('sts').get_caller_identity()['Account'])
 
-    return ec2, cw
+    return ec2, ec2_client,cw,asg
 
-def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
+def run_report(ec2,cw,asg,cloudwatch_time_delta, use_cloudwatch, outputfile):
 
     with open(outputfile, 'wb') as outfh:
         writer = csv.writer(outfh)
@@ -125,6 +132,10 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
                 sec_group_text = sec_group_text + sec_groups['GroupName'] + ":" + sec_groups['GroupId'] + ","
             sec_group_text = sec_group_text.rstrip(",")
 
+            # get info on the ami-id used to create the ec2 instance
+            image = ec2.Image(instance.image_id)
+
+
             # The first few metadata items.
             tags_message_leading_cols.append(account_id)
             tags_message_leading_cols.append(account_name)
@@ -137,9 +148,10 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
             tags_message_leading_cols.append(str(instance.private_ip_address))
             tags_message_leading_cols.append(instance.instance_lifecycle)
             tags_message_leading_cols.append(sec_group_text)
-            tags_message_leading_cols.append("") # AMI-ID
+            tags_message_leading_cols.append(instance.image_id) # AMI-ID
             tags_message_leading_cols.append("") # Memory
             tags_message_leading_cols.append("") # Pricing Type
+            #tags_message_leading_cols.append(get_autoscale_group(asg, instance.id)) # Autoscaling Group
             tags_message_leading_cols.append("") # Autoscaling Group
 
             # cloud watch permissions not yet deployed; don't compute values
@@ -159,9 +171,7 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
                 tags_message_leading_cols.append("")
 
             # some instances don't have ANY tags and will throw exception
-            if instance.tags is None:
-                pass
-            else:
+            if instance.tags:
                 # iterate through each tag to see if it's a required_field
                 for tag in instance.tags:
                     for key, value in required_fields.iteritems():
@@ -176,7 +186,19 @@ def run_report(ec2,cw, cloudwatch_time_delta, use_cloudwatch, outputfile):
 
         print "Report output to: " + outputfile
 
+def get_autoscale_group(asg, instance_id):
+    instances = asg.describe_auto_scaling_instances(InstanceIds=[instance_id])
+    get_autoscale_group = instances['AutoScalingInstances']
+    if get_autoscale_group:
+        return get_autoscale_group[0]['AutoScalingGroupName']
+    return None
 
+def get_image_lookup(ami_id,ec2,ec2_client):
+    images = ec2_client.describe_images(image_ids=[ami_id])
+    return image_name
+
+def upload_to_s3():
+    pass
 
 # get cloud watch metrics.
 # valid metric params are : cpu_avg , cpu_max , disk_read_bytes , disk_write_bytes , network_in_bytes , network_out_bytes
