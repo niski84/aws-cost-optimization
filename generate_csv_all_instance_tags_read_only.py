@@ -2,7 +2,7 @@
 #
 #  Author: Nick Skitch (CAP team)
 #  For Tagging Compliance.
-prog_desc = "Generate CSV report of all instance tags"
+prog_desc = "Generate CSV report of all instances on instance attributes and cloudwatch metrics"
 #
 # Name => <datacenter>-<environment>-<org>-<customer>-<application>-<additional>
 # Creator => Ex: CAP, PAAS, etc
@@ -19,9 +19,13 @@ import boto3
 import json
 import argparse
 import csv
+import botocore.session
 from collections import OrderedDict
-import datetime
 import math
+import os, sys
+from datetime import datetime, timedelta
+
+
 
 ## ----------------------------------------------------
 ## Configuration variables (defaults)
@@ -32,30 +36,75 @@ required_fields = OrderedDict([('Name',''),('App',''),('AppOwner',''), ('Environ
 
 aws_profile_default = "predix-w2-cf3"
 aws_region_default = "us-west-2"
+bucket = 'predix-tagging-compliance'
+key = 'csv_reports'
+role_name = '/tf/predix-cap-taggingaudit'
+cloudwatch_time_delta = timedelta(days=14) # request to set to 14 days even though it's run daily..
 ## ----------------------------------------------------
 
 aws_profile = ""
 aws_region = ""
 outputfile = ""
 filter_by_tag = ""
-cloudwatch_time_delta = datetime.timedelta(days=14)
 use_cloudwatch = ""
 cw = ""
 
+# overcome issues with crontabs not knowing where their home is!
+abspath = os.path.abspath(__file__)
+dname = os.path.dirname(abspath)
+os.chdir(dname)
+
+# dir where reports are written out to
+report_dir = "./reports/"+str(datetime.now().strftime('%Y-%m-%d-%H-%s')+"/")
+
+try:
+    os.makedirs(report_dir)
+except:
+    pass
+
 def main():
     print "time delta is {0}".format(cloudwatch_time_delta)
+
+    # validate arguments provided on command line
     validate_script_inputs()
-    ec2,ec2_client,cw,asg = connect_aws(aws_profile,aws_region)
 
-    #print get_image_lookup("ami-0b87606b",ec2,ec2_client)
+    # filter ~/.aws/config to only profiles with the role we want to assume (ex: '/tf/predix-cap-taggingaudit' )
+    profiles = get_filtered_aws_config_profiles(filter_on_role_name = role_name)
 
-    run_report(ec2,cw,asg,cloudwatch_time_delta,use_cloudwatch,outputfile)
+    # connect to each resource, then run report for each profile
+    # note: boto will prompt for mfa if it's needed
+    for profile, profile_config in profiles.items():
+        print profile
+        ec2,ec2_client,cw,asg = connect_aws(profile,profile_config['region'])
+        outputfile = report_dir + profile + "_tag_report.csv"
+        run_report(ec2,cw,asg,profile,cloudwatch_time_delta,use_cloudwatch,outputfile)
 
 
+    combined_reports_file = concatonate_reports(report_dir)
+    upload_to_s3(combined_reports_file,bucket,key)
+
+
+# get profiles from ~/.aws/config filtered by certain role_arn's
+def get_filtered_aws_config_profiles(filter_on_role_name, config_location = "~/.aws/config"):
+    profiles_to_use = {}
+    profiles = botocore.configloader.raw_config_parse(config_location)
+
+    for profile,profile_config in profiles.items():
+        if 'role_arn' in profile_config:
+            parsed_role = profile_config['role_arn'].split('role')[1]
+            if filter_on_role_name == parsed_role:
+                profiles_to_use[profile.replace('profile ','')] = profile_config
+
+    return profiles_to_use
+
+# connect to the various resource APIs. All in one function so if there's an access denied we know right away
+# rather than halfway thru the report.
 def connect_aws(aws_profile,aws_region):
-    print "connecting to aws using the {0} profile".format(aws_profile)
+    print "connecting to aws using the {0} profile in {1} region".format(aws_profile,aws_region)
     boto3.setup_default_session(profile_name=aws_profile)
-    ec2 = boto3.resource('ec2', region_name=aws_region)
+
+
+    ec2 = boto3.resource('ec2')
     ec2_client = boto3.client('ec2', region_name=aws_region)
     asg = boto3.client('autoscaling', region_name=aws_region)
 
@@ -71,7 +120,14 @@ def connect_aws(aws_profile,aws_region):
 
     return ec2, ec2_client,cw,asg
 
-def run_report(ec2,cw,asg,cloudwatch_time_delta, use_cloudwatch, outputfile):
+
+# main function to gather instance attributes and cloudwatch metrics
+def run_report(ec2,cw,asg,aws_profile,cloudwatch_time_delta, use_cloudwatch, outputfile):
+
+    try:
+        os.makedirs(os.path.dirname(outputfile))
+    except:
+        pass
 
     with open(outputfile, 'wb') as outfh:
         writer = csv.writer(outfh)
@@ -80,7 +136,7 @@ def run_report(ec2,cw,asg,cloudwatch_time_delta, use_cloudwatch, outputfile):
         header = ["Account ID","Account Name", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time", \
         "Instance Type","Private IP Address","Tenancy","Security Group","AMI-ID","Memory","Pricing Type","Auto Scaling Group Name"]
 
-
+        # cloudwatch headers (seperated so it can be turned on and off easily)
         cloudwatch_headers=["Average CPU Utilization", \
         "Maximum CPU Utilization","Disk Read (Bytes)","Disk Write (Bytes)","Network In (Bytes)","Network Out (Bytes)"]
         header = header + cloudwatch_headers
@@ -105,7 +161,6 @@ def run_report(ec2,cw,asg,cloudwatch_time_delta, use_cloudwatch, outputfile):
         # report outputs the account name as the name used in the /.aws/config file.
         # predix-management is the default account, so change the name so it doesn't
         # appear confusing on the report
-
         if aws_profile == "default":
             account_id = "768198107322"
             account_name = "Predix-Mgt"
@@ -132,10 +187,6 @@ def run_report(ec2,cw,asg,cloudwatch_time_delta, use_cloudwatch, outputfile):
                 sec_group_text = sec_group_text + sec_groups['GroupName'] + ":" + sec_groups['GroupId'] + ","
             sec_group_text = sec_group_text.rstrip(",")
 
-            # get info on the ami-id used to create the ec2 instance
-            image = ec2.Image(instance.image_id)
-
-
             # The first few metadata items.
             tags_message_leading_cols.append(account_id)
             tags_message_leading_cols.append(account_name)
@@ -152,7 +203,7 @@ def run_report(ec2,cw,asg,cloudwatch_time_delta, use_cloudwatch, outputfile):
             tags_message_leading_cols.append("") # Memory
             tags_message_leading_cols.append("") # Pricing Type
             #tags_message_leading_cols.append(get_autoscale_group(asg, instance.id)) # Autoscaling Group
-            tags_message_leading_cols.append("") # Autoscaling Group
+            tags_message_leading_cols.append(get_autoscale_group(asg, instance.id)) # Autoscaling Group
 
             # cloud watch permissions not yet deployed; don't compute values
             if use_cloudwatch == "true":
@@ -186,19 +237,28 @@ def run_report(ec2,cw,asg,cloudwatch_time_delta, use_cloudwatch, outputfile):
 
         print "Report output to: " + outputfile
 
+# get the Autoscaling group instance id is a member of, else return None
 def get_autoscale_group(asg, instance_id):
-    instances = asg.describe_auto_scaling_instances(InstanceIds=[instance_id])
-    get_autoscale_group = instances['AutoScalingInstances']
+    try:
+        instances = asg.describe_auto_scaling_instances(InstanceIds=[instance_id])
+        get_autoscale_group = instances['AutoScalingInstances']
+    except Exception as e:
+        print e
+
     if get_autoscale_group:
         return get_autoscale_group[0]['AutoScalingGroupName']
     return None
 
-def get_image_lookup(ami_id,ec2,ec2_client):
-    images = ec2_client.describe_images(image_ids=[ami_id])
-    return image_name
-
-def upload_to_s3():
-    pass
+# upload report to s3 bucket and overwrite latest
+def upload_to_s3(file_path,bucket,key):
+    print "uploading to s3"
+    boto3.setup_default_session(profile_name='default')
+    s3 = boto3.client('s3')
+    transfer = boto3.s3.transfer.S3Transfer(s3)
+    file = os.path.basename(file_path)
+    transfer.upload_file(file_path, bucket, key+"/"+file)
+    transfer.upload_file(file_path, bucket, key+"/latest/"+file)
+    print "uploaded",file_path, bucket, key+"/"+file
 
 # get cloud watch metrics.
 # valid metric params are : cpu_avg , cpu_max , disk_read_bytes , disk_write_bytes , network_in_bytes , network_out_bytes
@@ -206,7 +266,7 @@ def get_cloudwatch_metric(metric_query,instanceid,time_delta,aws_region,cw):
 
     dim = [{'Name': 'InstanceId', 'Value': instanceid}]
     period = 3600 # 3600 == 1 hr
-    endTime = datetime.datetime.now()
+    endTime = datetime.now()
     startTime = endTime - time_delta
 
     if metric_query.lower() == "cpu_avg":
@@ -288,6 +348,7 @@ def get_cloudwatch_metric(metric_query,instanceid,time_delta,aws_region,cw):
             return data
 
 # cloudwatch returns values in Bytes; yuck.  Convert to human readable data sizes
+# not using, was asked to return bytes instead
 def get_human_readable_filesize(size_bytes):
    if size_bytes == 0:
        return "0B"
@@ -297,6 +358,7 @@ def get_human_readable_filesize(size_bytes):
    s = round(size_bytes / p, 2)
    return "%s %s" % (s, size_name[i])
 
+# validate the script inputs and set defaults
 def validate_script_inputs():
 
     parser = argparse.ArgumentParser(description=prog_desc)
@@ -331,7 +393,32 @@ def validate_script_inputs():
     if outputfile == "<profile>_tag_report.csv":
         outputfile = aws_profile + "_tag_report.csv"
 
+# concatonate all the csv reports
+def concatonate_reports(report_dir):
+    filenames = []
+    output_file = report_dir + str(datetime.now().strftime('%Y-%m-%d'))+"_combined_accounts_tagging_report.csv"
 
+    # walk report dir to get report filenames
+    files = [ f for f in os.listdir(report_dir) if os.path.isfile(os.path.join(report_dir,f)) ]
+    for f in files:
+        if "combined_accounts" not in f: #  avoid recursive read error
+            filenames.append(f)
+
+    # grab header
+    with open(os.path.join(report_dir,filenames[0])) as infile:
+        header = infile.readline()
+
+    # open each file and combine them.
+    # remove header on each report.
+    with open(output_file, 'w') as outfile:
+        outfile.write(header)
+        for fname in filenames:
+            with open(os.path.join(report_dir,fname)) as infile:
+                infile.next() # skip header line
+                for line in infile:
+                    outfile.write(line)
+
+    return output_file
 
 if __name__ == "__main__":
     main()
