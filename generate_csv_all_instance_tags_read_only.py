@@ -54,6 +54,7 @@ abspath = os.path.abspath(__file__)
 dname = os.path.dirname(abspath)
 os.chdir(dname)
 
+
 # dir where reports are written out to
 report_dir = "./reports/"+str(datetime.now().strftime('%Y-%m-%d-%H-%s')+"/")
 
@@ -67,7 +68,7 @@ def main():
 
     # validate arguments provided on command line
     validate_script_inputs()
-
+    print "the output directory for reports is: {0}".format(report_dir)
     # filter ~/.aws/config to only profiles with the role we want to assume (ex: '/tf/predix-cap-taggingaudit' )
     profiles = get_filtered_aws_config_profiles(filter_on_role_name = role_name)
 
@@ -133,7 +134,7 @@ def run_report(ec2,cw,asg,aws_profile,cloudwatch_time_delta, use_cloudwatch, out
         writer = csv.writer(outfh)
 
         # header
-        header = ["Account ID","Account Name", "Region", "Availability Zone","Instance ID", "Instance State", "Launch Time", \
+        header = ["Account ID","Account Name", "Region", "Availability Zone","Report Date", "Instance ID", "Instance State", "Launch Time", \
         "Instance Type","Private IP Address","Tenancy","Security Group","AMI-ID","Memory","Pricing Type","Auto Scaling Group Name"]
 
         # cloudwatch headers (seperated so it can be turned on and off easily)
@@ -192,6 +193,7 @@ def run_report(ec2,cw,asg,aws_profile,cloudwatch_time_delta, use_cloudwatch, out
             tags_message_leading_cols.append(account_name)
             tags_message_leading_cols.append(aws_region)
             tags_message_leading_cols.append(instance.placement['AvailabilityZone'])
+            tags_message_leading_cols.append(datetime.now().strftime("%Y-%m-%d"))
             tags_message_leading_cols.append(instance.id)
             tags_message_leading_cols.append(instance.state['Name'])
             tags_message_leading_cols.append(str(instance.launch_time))
@@ -200,9 +202,8 @@ def run_report(ec2,cw,asg,aws_profile,cloudwatch_time_delta, use_cloudwatch, out
             tags_message_leading_cols.append(instance.instance_lifecycle)
             tags_message_leading_cols.append(sec_group_text)
             tags_message_leading_cols.append(instance.image_id) # AMI-ID
-            tags_message_leading_cols.append("") # Memory
-            tags_message_leading_cols.append("") # Pricing Type
-            #tags_message_leading_cols.append(get_autoscale_group(asg, instance.id)) # Autoscaling Group
+            tags_message_leading_cols.append("") # Memory (requires amazon python scripts to collect metrics)
+            tags_message_leading_cols.append("") # Pricing Type - only available thru aws billing
             tags_message_leading_cols.append(get_autoscale_group(asg, instance.id)) # Autoscaling Group
 
             # cloud watch permissions not yet deployed; don't compute values
@@ -362,6 +363,7 @@ def get_human_readable_filesize(size_bytes):
 def validate_script_inputs():
 
     parser = argparse.ArgumentParser(description=prog_desc)
+    # needs to be fixed since the parsing aws config profiles
     parser.add_argument("--profile", help="AWS profile: "+aws_profile_default, default=aws_profile_default)
     parser.add_argument("--region", help="AWS region: "+aws_region_default, default=aws_region_default)
     parser.add_argument("--filter_by_tag", help="filter by tag name")
