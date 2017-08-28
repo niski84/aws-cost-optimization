@@ -34,16 +34,13 @@ from datetime import datetime, timedelta
 # holds required tags and the values found. OfderedDict to keep the columns lined up
 required_fields = OrderedDict([('Name',''),('App',''),('AppOwner',''), ('Environment',''), ('Director','')])
 
-aws_profile_default = "predix-w2-cf3"
-aws_region_default = "us-west-2"
+role_name_default="/tf/predix-cap-taggingaudit"
 bucket = 'predix-tagging-compliance'
 key = 'csv_reports'
-role_name = '/tf/predix-cap-taggingaudit'
 cloudwatch_time_delta = timedelta(days=14) # request to set to 14 days even though it's run daily..
 ## ----------------------------------------------------
 
-aws_profile = ""
-aws_region = ""
+role_name = ""
 outputfile = ""
 filter_by_tag = ""
 use_cloudwatch = ""
@@ -72,13 +69,18 @@ def main():
     # filter ~/.aws/config to only profiles with the role we want to assume (ex: '/tf/predix-cap-taggingaudit' )
     profiles = get_filtered_aws_config_profiles(filter_on_role_name = role_name)
 
+    if len(profiles) == 0:
+        print "\nExiting. No profiles were found with the role name:", role_name, "in the ~/.aws/config file"
+        print "use the --role_name argument to specify a valid role name"
+        exit()
+
     # connect to each resource, then run report for each profile
     # note: boto will prompt for mfa if it's needed
     for profile, profile_config in profiles.items():
         print profile
         ec2,ec2_client,cw,asg = connect_aws(profile,profile_config['region'])
         outputfile = report_dir + profile + "_tag_report.csv"
-        run_report(ec2,cw,asg,profile,cloudwatch_time_delta,use_cloudwatch,outputfile)
+        run_report(ec2,cw,asg,profile,profile_config['region'],cloudwatch_time_delta,use_cloudwatch,outputfile)
 
 
     combined_reports_file = concatonate_reports(report_dir)
@@ -123,7 +125,7 @@ def connect_aws(aws_profile,aws_region):
 
 
 # main function to gather instance attributes and cloudwatch metrics
-def run_report(ec2,cw,asg,aws_profile,cloudwatch_time_delta, use_cloudwatch, outputfile):
+def run_report(ec2,cw,asg,aws_profile,aws_region,cloudwatch_time_delta, use_cloudwatch, outputfile):
 
     try:
         os.makedirs(os.path.dirname(outputfile))
@@ -363,19 +365,18 @@ def get_human_readable_filesize(size_bytes):
 def validate_script_inputs():
 
     parser = argparse.ArgumentParser(description=prog_desc)
-    # needs to be fixed since the parsing aws config profiles
-    parser.add_argument("--profile", help="AWS profile: "+aws_profile_default, default=aws_profile_default)
-    parser.add_argument("--region", help="AWS region: "+aws_region_default, default=aws_region_default)
+
+    parser.add_argument("--role_name", help="Role Name to filter aws config with")
     parser.add_argument("--filter_by_tag", help="filter by tag name")
     parser.add_argument("--use_cloudwatch", help="Add Cloudwatch Metrics", default="true")
-    parser.add_argument("--output", help="Output filename", default="<profile>_tag_report.csv")
+
     args = parser.parse_args()
 
-    global aws_profile
-    aws_profile = args.profile
-    if aws_profile == "":
-        aws_profile = aws_profile_default
-        print "-profile argument not provided, defaulting to "+aws_profile_default
+    global role_name
+    role_name = args.role_name
+    if role_name == None:
+        role_name = role_name_default
+        print "-profile argument not provided, defaulting to "+role_name_default
 
     global filter_by_tag
     filter_by_tag = args.filter_by_tag
@@ -383,17 +384,6 @@ def validate_script_inputs():
     global use_cloudwatch
     use_cloudwatch = args.use_cloudwatch
 
-
-    global aws_region
-    aws_region = args.region
-    if aws_region == "":
-        aws_region = aws_region_default
-        print "-region argument not provided, defaulting to "+aws_region_default
-
-    global outputfile
-    outputfile = args.output
-    if outputfile == "<profile>_tag_report.csv":
-        outputfile = aws_profile + "_tag_report.csv"
 
 # concatonate all the csv reports
 def concatonate_reports(report_dir):
