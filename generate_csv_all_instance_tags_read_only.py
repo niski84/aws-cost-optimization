@@ -229,7 +229,7 @@ def run_report(ec2,cw,asg,aws_profile,aws_region,cloudwatch_time_delta, use_clou
                 for tag in instance.tags:
                     for key, value in required_fields.iteritems():
                         if tag['Key'].lower() == key.lower():
-                            required_fields[key] = "{0} : {1} ".format(tag['Key'], tag['Value'])
+                            required_fields[key] = "{1}".format(tag['Key'], tag['Value'])
 
             # combine leading columns with required tags found
             merged_tags = tags_message_leading_cols + required_fields.values()
