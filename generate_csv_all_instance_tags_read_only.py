@@ -5,13 +5,8 @@
 prog_desc = "Generate CSV report of all instances on instance attributes and cloudwatch metrics"
 #
 # Name => <datacenter>-<environment>-<org>-<customer>-<application>-<additional>
-# Creator => Ex: CAP, PAAS, etc
 # App => Ex: Cassandra, Redis, EMR, etc.
 # AppOwner => (Acutal Customer who is using the app) Ex: Asset Team
-# Contact => Ex: Asset team email address, dataservices email address, etc.
-# CostCenter => Ex: GC48E2 (see attached xls from finance)
-# Location => Ex: aws-us_west-2a (Cloud_provider-Region-AZ)
-# Customer => Internal and External where applicable
 # Environment => Prod, Dev, Staging, Sandbox, Perf, QA
 
 
@@ -61,17 +56,19 @@ except:
     pass
 
 def main():
-    print "time delta is {0}".format(cloudwatch_time_delta)
 
     # validate arguments provided on command line
     validate_script_inputs()
+
+    print "time delta is {0}".format(cloudwatch_time_delta)
     print "the output directory for reports is: {0}".format(report_dir)
-    # filter ~/.aws/config to only profiles with the role we want to assume (ex: '/tf/predix-cap-taggingaudit' )
+
+    # filter ~/.aws/config to fetch only profiles with the role we want to assume (ex: '/tf/predix-cap-taggingaudit' )
     profiles = get_filtered_aws_config_profiles(filter_on_role_name = role_name)
 
     if len(profiles) == 0:
         print "\nExiting. No profiles were found with the role name:", role_name, "in the ~/.aws/config file"
-        print "use the --role_name argument to specify a valid role name"
+        print "use the --role_name argument to specify a valid role name contained in the ~/.aws/config file"
         exit()
 
     # connect to each resource, then run report for each profile
@@ -83,7 +80,10 @@ def main():
         run_report(ec2,cw,asg,profile,profile_config['region'],cloudwatch_time_delta,use_cloudwatch,outputfile)
 
 
+    # combine the reports into one csv file
     combined_reports_file = concatonate_reports(report_dir)
+
+    # upload the csv file to s3
     upload_to_s3(combined_reports_file,bucket,key)
 
 
@@ -115,8 +115,7 @@ def connect_aws(aws_profile,aws_region):
         cw = boto3.client('cloudwatch', region_name=aws_region)
     else:
         cw = ""
-    my_session = boto3.session.Session()
-    my_region = my_session.region_name
+
 
     print "logged into {0} region".format(my_region)
     print "using {0} account to assume roles.".format(boto3.client('sts').get_caller_identity()['Account'])
@@ -157,7 +156,7 @@ def run_report(ec2,cw,asg,aws_profile,aws_region,cloudwatch_time_delta, use_clou
         if filter_by_tag:
             instances = ec2.instances.filter(Filters=[{'Name': 'tag:' + filter_by_tag,'Values': ['*']}])
         else:
-            # no filter_by_tag argument was given, so default to reporting on running instances
+            # no filter_by_tag argument was given, so default to reporting on all instances
             instances = ec2.instances.all()
 
 
@@ -208,7 +207,7 @@ def run_report(ec2,cw,asg,aws_profile,aws_region,cloudwatch_time_delta, use_clou
             tags_message_leading_cols.append("") # Pricing Type - only available thru aws billing
             tags_message_leading_cols.append(get_autoscale_group(asg, instance.id)) # Autoscaling Group
 
-            # cloud watch permissions not yet deployed; don't compute values
+            # if use_cloudwatch comamnd line paramater wasn't set to false, then retrieve the (time consuming) cloudwatch metrics
             if use_cloudwatch == "true":
                 tags_message_leading_cols.append(get_cloudwatch_metric('cpu_avg',instance.id,cloudwatch_time_delta,aws_region,cw))
                 tags_message_leading_cols.append(get_cloudwatch_metric('cpu_max',instance.id,cloudwatch_time_delta,aws_region,cw))
