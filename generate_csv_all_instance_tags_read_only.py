@@ -117,7 +117,7 @@ def connect_aws(aws_profile,aws_region):
         cw = ""
 
 
-    print "logged into {0} region".format(my_region)
+    print "logged into {0} region".format(aws_region)
     print "using {0} account to assume roles.".format(boto3.client('sts').get_caller_identity()['Account'])
 
     return ec2, ec2_client,cw,asg
