@@ -259,7 +259,7 @@ def upload_to_s3(file_path,bucket,key):
     transfer = boto3.s3.transfer.S3Transfer(s3)
     file = os.path.basename(file_path)
     transfer.upload_file(file_path, bucket, key+"/"+file)
-    transfer.upload_file(file_path, bucket, key+"/latest/"+file)
+    transfer.upload_file(file_path, bucket, key+"/latest/"+"latest"+"_combined_accounts_tagging_report.csv")
     print "uploaded",file_path, bucket, key+"/"+file
 
 # get cloud watch metrics.
