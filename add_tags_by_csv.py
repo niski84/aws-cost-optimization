@@ -122,22 +122,8 @@ def get_instance_list(inputfile):
 def validate_script_inputs():
 
     parser = argparse.ArgumentParser(description=prog_desc)
-    parser.add_argument("--profile", help="AWS profile: "+aws_profile_default, default=aws_profile_default)
-    parser.add_argument("--region", help="AWS region: "+aws_region_default, default=aws_region_default)
     parser.add_argument("--input", help="input filename")
     args = parser.parse_args()
-
-    global aws_profile
-    aws_profile = args.profile
-    if aws_profile == "":
-        aws_profile = aws_profile_default
-        print "-profile argument not provided, defaulting to "+aws_profile_default
-
-    global aws_region
-    aws_region = args.region
-    if aws_region == "":
-        aws_region = aws_region_default
-        print "-region argument not provided, defaulting to "+aws_region_default
 
     global inputfile
     inputfile = args.input

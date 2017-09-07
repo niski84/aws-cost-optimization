@@ -1,0 +1,54 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Deny",
+            "Action": "ec2:RunInstances",
+            "Resource": "arn:aws:ec2:*:*:instance/*",
+            "Condition": {
+                "Null": {
+                    "aws:RequestTag/Name": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Deny",
+            "Action": "ec2:RunInstances",
+            "Resource": "arn:aws:ec2:*:*:instance/*",
+            "Condition": {
+                "Null": {
+                    "aws:RequestTag/App": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Deny",
+            "Action": "ec2:RunInstances",
+            "Resource": "arn:aws:ec2:*:*:instance/*",
+            "Condition": {
+                "Null": {
+                    "aws:RequestTag/AppOwner": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Deny",
+            "Action": "ec2:RunInstances",
+            "Resource": "arn:aws:ec2:*:*:instance/*",
+            "Condition": {
+                "Null": {
+                    "aws:RequestTag/Environment": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "sts:DecodeAuthorizationMessage"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}
