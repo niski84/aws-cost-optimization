@@ -17,14 +17,13 @@ import time
 ## Configuration variables (defaults)
 ##
 
-aws_profile_default = "predix-w2-cf3"
-aws_region_default = "us-west-2"
+
 ## ----------------------------------------------------
 
 aws_profile = ""
 aws_region = ""
 inputfile = ""
-
+overwrite = "false"
 
 def main():
 
@@ -63,28 +62,65 @@ def update_tags(spreedsheetrows,aws_config):
     current_profile = ""
     for row in spreedsheetrows:
         for profile, profile_data in aws_config.items():
-            if row["profile_name"].lower() in profile.lower():
+            if row["profile_name"].lower() == profile.lower().replace("profile ",""):
                 if not current_profile == profile:
                     ec2_client = connect_aws(profile,profile_data["region"])
                     current_profile = profile
                     break
 
-        print "tagging with the following " + row["profile_name"], row["instance_id"],row["name_tag"],row["app_tag"],row["appowner_tag"],row["env_tag"]
+        # remove spaces and qoutes
+        row["instance_id"] = row["instance_id"].strip().strip('"')
 
-        # try to create tag, sometime instace ids have been terminated and exception is thrown
-        try:
-            ec2_client.create_tags(Resources=[row["instance_id"]],
-            Tags= [
-            {'Key':'App', 'Value': row["app_tag"]}, \
-            {'Key':'AppOwner', 'Value': row["appowner_tag"]}, \
-            {'Key':'Environment', 'Value': row["env_tag"]} \
-            ])
-        except Exception as e:
-            print e
 
-        print "."
-        # whoah, slow it down there cowboy
-        time.sleep(.3)
+        # retreive current tags
+        current_tags = ec2_client.describe_tags(Filters=
+            [{'Name':'resource-id', 'Values': [str(row["instance_id"])]}]
+        )
+
+        if overwrite=="true":
+            # try to create tag, sometime instace ids have been terminated and exception is thrown
+            print row["instance_id"],": overwriting existing values"
+            try:
+                ec2_client.create_tags(Resources=[row["instance_id"]],
+                Tags= [
+                {'Key':'Name', 'Value': row["name_tag"]}, \
+                {'Key':'App', 'Value': row["app_tag"]}, \
+                {'Key':'AppOwner', 'Value': row["appowner_tag"]}, \
+                {'Key':'Environment', 'Value': row["env_tag"]} \
+                ])
+            except Exception as e:
+                print e
+        else:
+            # Create a tag if there is no current value
+            print "checking ",row["instance_id"]
+            for tag in current_tags["Tags"]:
+                if tag['Key'] == 'Name':
+                    if tag['Value'].strip() == '':
+                        create_tag(row["instance_id"],'Name', row["name_tag"],ec2_client)
+                if tag['Key'] == 'App':
+                    if tag['Value'].strip() == '':
+                        create_tag(row["instance_id"],'App', row["app_tag"],ec2_client)
+                if tag['Key'] == 'AppOwner':
+                    if tag['Value'].strip() == '':
+                        create_tag(row["instance_id"],'AppOwner', row["appowner_tag"],ec2_client)
+                if tag['Key'] == 'Environment':
+                    if tag['Value'].strip() == '':
+                        create_tag(row["instance_id"],'Environment', row["env_tag"],ec2_client)
+
+
+def create_tag(instance_id,key, value,ec2_client):
+    try:
+        print "Create Tag: instance id: ",instance_id," Setting:",key,"to Value:",value
+        ec2_client.create_tags(Resources=[instance_id],
+        Tags= [
+            {'Key':key, 'Value': value}
+        ])
+    except Exception as e:
+        print e
+    # whoah, slow it down there cowboy
+    time.sleep(.3)
+
+
 
 def strip_key_name(value):
     if ":" in value:
@@ -123,6 +159,7 @@ def validate_script_inputs():
 
     parser = argparse.ArgumentParser(description=prog_desc)
     parser.add_argument("--input", help="input filename")
+    parser.add_argument("--overwrite", help="set to true if script should overwrite existing tag values.")
     args = parser.parse_args()
 
     global inputfile
@@ -131,6 +168,9 @@ def validate_script_inputs():
         print "No --input argument supplied. You must include a csv file"
         exit(1)
 
+    global overwrite
+    if args.overwrite:
+        overwrite = "true"
 
 
 if __name__ == "__main__":
