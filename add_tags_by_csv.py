@@ -77,36 +77,45 @@ def update_tags(spreedsheetrows,aws_config):
             [{'Name':'resource-id', 'Values': [str(row["instance_id"])]}]
         )
 
+        # if overwrite argument was provided, overwrite
+        # else, only create tags if the value does not aready exist (non-overwrite)
         if overwrite=="true":
             # try to create tag, sometime instace ids have been terminated and exception is thrown
             print row["instance_id"],": overwriting existing values"
             try:
+                #col["profile_name"], col["instance_id"],col["Name"],col["App"],col["AppOwner"],col["Environment"] = row
                 ec2_client.create_tags(Resources=[row["instance_id"]],
                 Tags= [
-                {'Key':'Name', 'Value': row["name_tag"]}, \
-                {'Key':'App', 'Value': row["app_tag"]}, \
-                {'Key':'AppOwner', 'Value': row["appowner_tag"]}, \
-                {'Key':'Environment', 'Value': row["env_tag"]} \
+                {'Key':'Name', 'Value': row["Name"]}, \
+                {'Key':'App', 'Value': row["App"]}, \
+                {'Key':'AppOwner', 'Value': row["AppOwner"]}, \
+                {'Key':'Environment', 'Value': row["Environment"]} \
                 ])
             except Exception as e:
                 print e
         else:
             # Create a tag if there is no current value
             print "checking ",row["instance_id"]
-            for tag in current_tags["Tags"]:
-                if tag['Key'] == 'Name':
-                    if tag['Value'].strip() == '':
-                        create_tag(row["instance_id"],'Name', row["name_tag"],ec2_client)
-                if tag['Key'] == 'App':
-                    if tag['Value'].strip() == '':
-                        create_tag(row["instance_id"],'App', row["app_tag"],ec2_client)
-                if tag['Key'] == 'AppOwner':
-                    if tag['Value'].strip() == '':
-                        create_tag(row["instance_id"],'AppOwner', row["appowner_tag"],ec2_client)
-                if tag['Key'] == 'Environment':
-                    if tag['Value'].strip() == '':
-                        create_tag(row["instance_id"],'Environment', row["env_tag"],ec2_client)
+            for key, value in row.iteritems():
+                tag_exists = None
 
+                # skip columns that don't contain tags
+                # skip column if value is null
+                if key == 'profile_name' or \
+                    key == 'instance_id' or \
+                    value.strip() == '':
+                    continue
+
+                # add a value only if the current value is blank
+                for tag in current_tags["Tags"]:
+                    if tag['Key'] == key:
+                        tag_exists = True
+                        if tag['Value'].strip() == '':
+                            create_tag(row["instance_id"],key, value,ec2_client)
+
+                # add the tag if it wasn't found
+                if not tag_exists:
+                    create_tag(row["instance_id"],key, value,ec2_client)
 
 def create_tag(instance_id,key, value,ec2_client):
     try:
@@ -150,7 +159,7 @@ def get_instance_list(inputfile):
 
     for row in reader:
        col = {}
-       col["profile_name"], col["instance_id"],col["name_tag"],col["app_tag"],col["appowner_tag"],col["env_tag"] = row
+       col["profile_name"], col["instance_id"],col["Name"],col["App"],col["AppOwner"],col["Environment"] = row
        spreedsheetrows.append(col)
     return spreedsheetrows
 
