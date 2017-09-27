@@ -33,6 +33,7 @@ role_name_default="/tf/predix-cap-taggingaudit"
 bucket = 'predix-tagging-compliance'
 key = 'csv_reports'
 cloudwatch_time_delta = timedelta(days=14) # request to set to 14 days even though it's run daily..
+aws_config_default='./.aws/config'
 ## ----------------------------------------------------
 
 role_name = ""
@@ -64,7 +65,7 @@ def main():
     print "the output directory for reports is: {0}".format(report_dir)
 
     # filter ~/.aws/config to fetch only profiles with the role we want to assume (ex: '/tf/predix-cap-taggingaudit' )
-    profiles = get_filtered_aws_config_profiles(filter_on_role_name = role_name)
+    profiles = get_filtered_aws_config_profiles(filter_on_role_name = role_name, config_location = aws_config)
 
     if len(profiles) == 0:
         print "\nExiting. No profiles were found with the role name:", role_name, "in the ~/.aws/config file"
@@ -75,7 +76,7 @@ def main():
     # note: boto will prompt for mfa if it's needed
     for profile, profile_config in profiles.items():
         print profile
-        ec2,ec2_client,cw,asg = connect_aws(profile,profile_config['region'])
+        ec2,ec2_client,cw,asg = connect_aws(profile,profile_config['region'],aws_config)
         outputfile = report_dir + profile + "_tag_report.csv"
         run_report(ec2,cw,asg,profile,profile_config['region'],cloudwatch_time_delta,use_cloudwatch,outputfile)
 
@@ -88,13 +89,15 @@ def main():
 
 
 # get profiles from ~/.aws/config filtered by certain role_arn's
-def get_filtered_aws_config_profiles(filter_on_role_name, config_location = "~/.aws/config"):
+def get_filtered_aws_config_profiles(filter_on_role_name, config_location):
     profiles_to_use = {}
+
     profiles = botocore.configloader.raw_config_parse(config_location)
 
     for profile,profile_config in profiles.items():
         if 'role_arn' in profile_config:
             parsed_role = profile_config['role_arn'].split('role')[1]
+
             if filter_on_role_name == parsed_role:
                 profiles_to_use[profile.replace('profile ','')] = profile_config
 
@@ -102,12 +105,15 @@ def get_filtered_aws_config_profiles(filter_on_role_name, config_location = "~/.
 
 # connect to the various resource APIs. All in one function so if there's an access denied we know right away
 # rather than halfway thru the report.
-def connect_aws(aws_profile,aws_region):
+def connect_aws(aws_profile,aws_region,aws_config):
     print "connecting to aws using the {0} profile in {1} region".format(aws_profile,aws_region)
+
+    print "using aws config file:",aws_config
+    os.environ["AWS_CONFIG_FILE"] = aws_config
+
     boto3.setup_default_session(profile_name=aws_profile)
 
-
-    ec2 = boto3.resource('ec2')
+    ec2 = boto3.resource('ec2',region_name=aws_region)
     ec2_client = boto3.client('ec2', region_name=aws_region)
     asg = boto3.client('autoscaling', region_name=aws_region)
 
@@ -367,7 +373,10 @@ def validate_script_inputs():
 
     parser.add_argument("--role_name", help="Role Name to filter aws config with")
     parser.add_argument("--filter_by_tag", help="filter by tag name")
+    parser.add_argument("--aws_config", help="default location of aws config and credentials", default=aws_config_default)
     parser.add_argument("--use_cloudwatch", help="Add Cloudwatch Metrics", default="true")
+
+
 
     args = parser.parse_args()
 
@@ -382,6 +391,9 @@ def validate_script_inputs():
 
     global use_cloudwatch
     use_cloudwatch = args.use_cloudwatch
+
+    global aws_config
+    aws_config = args.aws_config
 
 
 # concatonate all the csv reports
