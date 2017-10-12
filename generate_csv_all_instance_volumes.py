@@ -58,7 +58,7 @@ def main():
     validate_script_inputs()
 
     # filter ~/.aws/config to fetch only profiles with the role we want to assume (ex: '/tf/predix-cap-taggingaudit' )
-    profiles = get_filtered_aws_config_profiles(filter_on_role_name = role_name)
+    profiles = get_filtered_aws_config_profiles(filter_on_role_name = role_name, config_location='~/.aws/config')
 
     if len(profiles) == 0:
         print "\nExiting. No profiles were found with the role name:", role_name, "in the ~/.aws/config file"
@@ -67,7 +67,7 @@ def main():
 
     # connect to each resource, then run report for each profile
     # note: boto will prompt for mfa if it's needed
-    for profile, profile_config in profiles.items():
+    for profile, profile_config in sorted(profiles.items()):
         print profile
         print profile,profile_config['region']
         ec2,ec2_client = connect_aws(profile,profile_config['region'])
@@ -81,23 +81,21 @@ def main():
     combined_reports_file = concatonate_reports(report_dir)
 
     # upload the csv file to s3
-    upload_to_s3(combined_reports_file,bucket,key)
+    #upload_to_s3(combined_reports_file,bucket,key)
 
 
 # get profiles from ~/.aws/config filtered by certain role_arn's
-def get_filtered_aws_config_profiles(filter_on_role_name, config_location = "~/.aws/config"):
+def get_filtered_aws_config_profiles(filter_on_role_name, config_location):
     profiles_to_use = {}
+    print 'config location: ',config_location
+    profiles = botocore.configloader.load_config(config_location)['profiles']
 
-    if not os.path.isfile(os.path.expanduser(config_location)):
-        print "aws config file not found at: ",config_location
-
-    profiles = botocore.configloader.raw_config_parse(config_location)
 
     for profile,profile_config in profiles.items():
         if 'role_arn' in profile_config:
             parsed_role = profile_config['role_arn'].split('role')[1]
             if filter_on_role_name == parsed_role:
-                profiles_to_use[profile.replace('profile ','')] = profile_config
+                profiles_to_use[profile] = profile_config
 
     return profiles_to_use
 
@@ -157,7 +155,7 @@ def run_report(ec2,ec2_client,aws_profile,aws_region, outputfile):
         vols = ec2_client.describe_volumes()
         for volume in vols['Volumes']:
             volume_report = []
-            volume_report.append(account_id)
+            volume_report.append(account_id+'\t')
             volume_report.append(account_name)
             volume_report.append(aws_region)
             volume_report.append(volume['AvailabilityZone'])
@@ -172,7 +170,7 @@ def run_report(ec2,ec2_client,aws_profile,aws_region, outputfile):
             cost_per_month = ''
             cost_per_month = calc_monthly_cost(volume['Size'],volume['VolumeType'])
 
-            volume_report.append(volume_report.append(cost_per_month))
+            volume_report.append(cost_per_month)
             volume_report.append(volume['SnapshotId'])
 
             print volume_report
