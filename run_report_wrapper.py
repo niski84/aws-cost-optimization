@@ -11,21 +11,21 @@ def main():
     # profile is the profile name in your ~/.aws/config file
     profiles_to_run= [
      {'profile': 'default', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '291341409612-predix-w2-cf3', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '704700539638-predix-cf2-w2', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '625444672796-apne-cf2', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '011821064023-Power.Predix.East.2', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '867396380247-Power.Predix.East.3', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '548719943780=Masergy-PredixIO', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '124439511098-Predix-Data-Dev', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '652613759056-CF1-W2', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '575916559107-Predix_DMZ', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '124439511098-Predix-Data-Dev', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '648996173332-GEDigitalPredix-Management-Japan', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '414687770714-Predix-GER-WRK-Dev', 'region': 'eu-central-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '233205821581-CF1-APNE1', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '584190725146-predix-ger-wrk', 'region': 'eu-central-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
-     {'profile': '946308444248-industrial-grc', 'region': 'us-east-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'}
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxx-apne-cf2', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-west-2', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'eu-central-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'ap-northeast-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'eu-central-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'},
+     {'profile': 'xxxxxxxx', 'region': 'us-east-1', 'which_report' : 'generate_csv_all_instance_tags_read_only.py'}
 
     ]
 
