@@ -14,10 +14,9 @@
     - outputs to /reports/shutdownlist.txt
 - savings_calculator.py
     - Computes the cost savings per month and per year of shutting down idle instances identified in find_idle_instances.py
-- AutoTag/template.json and *.docx
+- AutoTag/template.json 
     - cloudformation template to autotag each instance with best guess of provisioner/owner
-    - this functionality has been moved to a diff repo. (ported cloudformaiton to terraform):
-        - https://github.svc.ice.gecis.io/pce-cap/tf_aws_autotag
+   
 
 # Prerequisites:
     pip install -r requirements.txt
